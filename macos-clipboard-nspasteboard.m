@@ -8,7 +8,8 @@ int plugin_is_GPL_compatible;
 #define Qnil env->intern(env, "nil")
 
 static emacs_value extract_pasteboard(emacs_env *env, ptrdiff_t nargs,
-                                      emacs_value args[], void *data) {
+                                      emacs_value args[],
+                                      void *data) EMACS_NOEXCEPT {
   emacs_value Qcons = env->intern(env, "cons");
   emacs_value result = Qnil;
 
@@ -46,7 +47,7 @@ static emacs_value extract_pasteboard(emacs_env *env, ptrdiff_t nargs,
   return result;
 }
 
-int emacs_module_init(struct emacs_runtime *runtime) {
+int emacs_module_init(struct emacs_runtime *runtime) EMACS_NOEXCEPT {
   if (runtime->size < sizeof(*runtime))
     return 1;
 
