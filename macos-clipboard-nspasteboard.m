@@ -6,6 +6,21 @@
 int plugin_is_GPL_compatible;
 
 #define Qnil env->intern(env, "nil")
+#define DEFUN(name, func, min_arity, max_arity, docstring)                     \
+  {                                                                            \
+    emacs_value Qsym = env->intern(env, name);                                 \
+    emacs_value Sfun =                                                         \
+        env->make_function(env, min_arity, max_arity, func, docstring, nil);   \
+    emacs_value args[] = {Qsym, Sfun};                                         \
+    env->funcall(env, env->intern(env, "fset"), 2, args);                      \
+  }
+#define PROVIDE(feat)                                                          \
+  {                                                                            \
+    emacs_value Qfeat = env->intern(env, feat);                                \
+    emacs_value Qprovide = env->intern(env, "provide");                        \
+    emacs_value args[] = {Qfeat};                                              \
+    env->funcall(env, Qprovide, 1, args);                                      \
+  }
 
 static emacs_value extract_pasteboard(emacs_env *env, ptrdiff_t nargs,
                                       emacs_value args[],
@@ -47,20 +62,48 @@ static emacs_value extract_pasteboard(emacs_env *env, ptrdiff_t nargs,
   return result;
 }
 
+static emacs_value set_string_pasteboard(emacs_env *env, ptrdiff_t nargs,
+                                         emacs_value args[],
+                                         void *data) EMACS_NOEXCEPT {
+  emacs_value str = args[0];
+  emacs_value type = nargs > 1 ? args[1] : Qnil;
+  NSString *ptype;
+
+  if (env->is_not_nil(env, type)) {
+    char buffer[128];
+    ptrdiff_t buffer_size = sizeof(buffer);
+    if (!env->copy_string_contents(env, type, buffer, &buffer_size)) {
+      // error no too long type name
+      return Qnil;
+    }
+    ptype = [NSString stringWithUTF8String:buffer];
+  } else {
+    ptype = @"public.utf8-plain-text";
+  }
+
+  NSString *value;
+  {
+    char *buffer = NULL;
+    ptrdiff_t buffer_size = 0;
+    env->copy_string_contents(env, str, buffer, &buffer_size);
+    buffer = malloc(buffer_size);
+    env->copy_string_contents(env, str, buffer, &buffer_size);
+    value = [NSString stringWithUTF8String:buffer];
+  }
+
+  NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
+  [pasteboard setString:value forType:ptype];
+
+  return Qnil;
+}
+
 int emacs_module_init(struct emacs_runtime *runtime) EMACS_NOEXCEPT {
   if (runtime->size < sizeof(*runtime))
     return 1;
-
   emacs_env *env = runtime->get_environment(runtime);
 
-  emacs_value Qsym = env->intern(env, "macos-clipboard-extract-pasteboard");
-  emacs_value Sfun = env->make_function(env, 0, 0, extract_pasteboard, "", nil);
-  emacs_value aa[] = {Qsym, Sfun};
-  env->funcall(env, env->intern(env, "fset"), 2, aa);
-
-  emacs_value Qfeat = env->intern(env, "macos-clipboard-nspasteboard");
-  emacs_value Qprovide = env->intern(env, "provide");
-  emacs_value args[] = {Qfeat};
-  env->funcall(env, Qprovide, 1, args);
+  DEFUN("macos-clipboard-extract-pasteboard", extract_pasteboard, 0, 0, "");
+  DEFUN("macos-clipboard-set-string", set_string_pasteboard, 1, 2, "");
+  PROVIDE("macos-clipboard-nspasteboard");
   return 0;
 }
