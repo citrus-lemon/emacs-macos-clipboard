@@ -26,6 +26,7 @@ static emacs_value extract_pasteboard(emacs_env *env, ptrdiff_t nargs,
                                       emacs_value args[],
                                       void *data) EMACS_NOEXCEPT {
   emacs_value Qcons = env->intern(env, "cons");
+  emacs_value Qnreverse = env->intern(env, "nreverse");
   emacs_value result = Qnil;
 
   NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
@@ -55,9 +56,13 @@ static emacs_value extract_pasteboard(emacs_env *env, ptrdiff_t nargs,
       emacs_value args[] = {Sentry, Sitem};
       Sitem = env->funcall(env, Qcons, 2, args);
     }
+    Sitem = env->funcall(env, Qnreverse, 1, &Sitem);
+
     emacs_value args[] = {Sitem, result};
     result = env->funcall(env, Qcons, 2, args);
   }
+  result = env->funcall(env, Qnreverse, 1, &result);
+
   [pool release];
   return result;
 }
