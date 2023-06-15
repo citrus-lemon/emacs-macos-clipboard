@@ -30,40 +30,66 @@ static emacs_value extract_pasteboard(emacs_env *env, ptrdiff_t nargs,
   emacs_value result = Qnil;
 
   NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
-  NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
-  for (NSPasteboardItem *item in [pasteboard pasteboardItems]) {
-    emacs_value Sitem = Qnil;
-    for (NSPasteboardType type in [item types]) {
-      emacs_value Stype =
-          env->make_string(env, [type UTF8String], strlen([type UTF8String]));
 
-      emacs_value Sdata = Qnil;
-      NSString *str = [item stringForType:type];
-      if (str) {
-        Sdata =
-            env->make_string(env, [str UTF8String], strlen([str UTF8String]));
-      } else {
-        NSData *data = [item dataForType:type];
-        if (data) {
-          Sdata = env->make_unibyte_string(env, (const char *)[data bytes],
-                                           [data length]);
+  @try {
+    NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
+    NSArray<NSPasteboardItem *> *pasteboardItems = [pasteboard pasteboardItems];
+
+    if (pasteboardItems) {
+      for (NSPasteboardItem *item in pasteboardItems) {
+        emacs_value Sitem = Qnil;
+
+        NSArray<NSPasteboardType> *types = [item types];
+
+        if (!types)
+          continue;
+
+        for (NSPasteboardType type in types) {
+          emacs_value Stype = env->make_string(env, [type UTF8String],
+                                               strlen([type UTF8String]));
+
+          emacs_value Sdata = Qnil;
+          NSString *str = [item stringForType:type];
+          if (str) {
+            Sdata = env->make_string(env, [str UTF8String],
+                                     strlen([str UTF8String]));
+          } else {
+            NSData *data = [item dataForType:type];
+            if (data) {
+              Sdata = env->make_unibyte_string(env, (const char *)[data bytes],
+                                               [data length]);
+            }
+          }
+
+          emacs_value c_args[] = {Stype, Sdata};
+          emacs_value Sentry = env->funcall(env, Qcons, 2, c_args);
+
+          emacs_value args[] = {Sentry, Sitem};
+          Sitem = env->funcall(env, Qcons, 2, args);
         }
+        Sitem = env->funcall(env, Qnreverse, 1, &Sitem);
+
+        emacs_value args[] = {Sitem, result};
+        result = env->funcall(env, Qcons, 2, args);
       }
-
-      emacs_value c_args[] = {Stype, Sdata};
-      emacs_value Sentry = env->funcall(env, Qcons, 2, c_args);
-
-      emacs_value args[] = {Sentry, Sitem};
-      Sitem = env->funcall(env, Qcons, 2, args);
     }
-    Sitem = env->funcall(env, Qnreverse, 1, &Sitem);
+    result = env->funcall(env, Qnreverse, 1, &result);
+  } @catch (NSException *exception) {
+    NSLog(@"[ERROR] %@", exception);
 
-    emacs_value args[] = {Sitem, result};
-    result = env->funcall(env, Qcons, 2, args);
+    NSString *reason = [exception reason];
+    if (!reason) {
+      reason = @"";
+    }
+
+    emacs_value Sreason =
+        env->make_string(env, [reason UTF8String], strlen([reason UTF8String]));
+
+    env->funcall(env, env->intern(env, "error"), 1, &Sreason);
+  } @finally {
+    [pool release];
   }
-  result = env->funcall(env, Qnreverse, 1, &result);
 
-  [pool release];
   return result;
 }
 
