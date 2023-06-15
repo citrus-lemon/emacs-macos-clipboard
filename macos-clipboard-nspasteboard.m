@@ -117,9 +117,10 @@ static emacs_value set_string_pasteboard(emacs_env *env, ptrdiff_t nargs,
     char *buffer = NULL;
     ptrdiff_t buffer_size = 0;
     env->copy_string_contents(env, str, buffer, &buffer_size);
-    buffer = malloc(buffer_size);
+    buffer = (char *)malloc(buffer_size);
     env->copy_string_contents(env, str, buffer, &buffer_size);
     value = [NSString stringWithUTF8String:buffer];
+    free(buffer);
   }
 
   NSPasteboard *pasteboard = [NSPasteboard generalPasteboard];
