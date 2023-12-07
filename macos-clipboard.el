@@ -3,7 +3,6 @@
 ;;; Code:
 
 (require 'macos-clipboard-nspasteboard)
-(require 'macos-clipboard-org)
 
 (provide 'macos-clipboard)
 ;;; macos-clipboard.el ends here

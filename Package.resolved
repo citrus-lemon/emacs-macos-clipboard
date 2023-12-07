@@ -1,0 +1,14 @@
+{
+  "pins" : [
+    {
+      "identity" : "emacs-swift-module",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/citrus-lemon/emacs-swift-module.git",
+      "state" : {
+        "branch" : "feature/make_unibyte_string",
+        "revision" : "29d59ee7261fa0562b1f00c4d79c710cd93d8bd3"
+      }
+    }
+  ],
+  "version" : 2
+}
