@@ -1,6 +1,8 @@
 #+title: Emacs macOS Clipboard
 #+subtitle: An Emacs extension for communicating with macOS pasteboard server
 
+An Emacs extension for communicating with macOS pasteboard server
+
 * Introduction
 
 Emacs can read or write into the clipboard.
@@ -51,7 +53,7 @@ add the config to =package.el=
 ((("public.png" . "<binary data>")))
 #+end_src
 
-** Copy HTML version when using <kbd>⌘-C<kbd> in =org-mode=.
+** Copy HTML version when using ~⌘-C~ in =org-mode=.
 
 This works when you copy your =org-mode= docs to *Slack*, *Google Docs* with keeping format.
 
@@ -77,7 +79,7 @@ This works when you copy your =org-mode= docs to *Slack*, *Google Docs* with kee
   '(define-key org-mode-map (kbd "s-c") 'macos-clipboard-org-copy-region-as-kill))
 #+end_src
 
-** Attach picture or file path when <kbd>⌘-V</kbd> in =org-mode=
+** Attach picture or file path when ~⌘-V~ in =org-mode=
 
 When you *paste* into =org-mode= files, it will insert a path link if you are copying a file or saving the pasteboard picture into =org-attach-id-dir= when copying a picture.
 
