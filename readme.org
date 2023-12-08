@@ -1,1 +1,163 @@
 #+title: Emacs macOS Clipboard
+#+subtitle: An Emacs extension for communicating with macOS pasteboard server
+
+* Introduction
+
+Emacs can read or write into the clipboard.
+However, macOS provides more function than only reading or writing strings.
+
+macOS pasteboards can provide multi items simultaneously, with one item saved as different presentations.
+
+For example copying two files from =Finder.app=
+
+#+begin_src elisp
+(macos-clipboard-extract-pasteboard)
+((("public.file-url" . "file:///Applications/Emacs.app/Contents/MacOS/Emacs")
+  ("public.utf16-external-plain-text" . "\377\376E^@m^@a^@c^@s^@^M^@l^@i^@b^@e^@x^@e^@c^@")
+  ("public.utf8-plain-text" . "Emacs^Mlibexec"))
+ (("public.file-url" . "file:///Applications/Emacs.app/Contents/MacOS/libexec/")))
+#+end_src
+
+This package provide the deeper function of macOS pasteboard by bridging [[https://developer.apple.com/documentation/appkit/nspasteboard][macOS Pasteboard API]].
+
+* Installation
+
+This package need =Swift Package Manager= to install
+
+#+begin_src shell
+make all
+#+end_src
+
+** for Doom Emacs
+
+add the config to =package.el=
+
+#+begin_src elisp
+(when IS-MAC
+  (package! macos-clipboard
+    :recipe (:host github
+             :repo "citrus-lemon/emacs-macos-clipboard"
+             :files ("*.el" "*.so")
+             :pre-build ("make" "all"))))
+#+end_src
+
+* Usage
+
+** Get screenshot from pasteboard
+
+#+begin_src elisp
+(macos-clipboard-extract-pasteboard)
+;; screenshot from pasteboard
+((("public.png" . "<binary data>")))
+#+end_src
+
+** Copy HTML version when using <kbd>⌘-C<kbd> in =org-mode=.
+
+This works when you copy your =org-mode= docs to *Slack*, *Google Docs* with keeping format.
+
+#+begin_src elisp :results none
+(require 'macos-clipboard)
+
+(defun macos-clipboard-org-kill-new (str)
+  (kill-new str)
+  (macos-clipboard-set-string
+   (org-export-string-as str 'html t '(:with-toc nil :inline-image local))
+   "public.html"))
+
+(defun macos-clipboard-org-copy-region-as-kill (beg end &optional region)
+  (interactive (list (mark) (point) 'region))
+  (let ((str (if region
+                 (funcall region-extract-function nil)
+               (filter-buffer-substring beg end))))
+    (macos-clipboard-org-kill-new str))
+  (setq deactivate-mark t)
+  nil)
+
+(eval-after-load 'org
+  '(define-key org-mode-map (kbd "s-c") 'macos-clipboard-org-copy-region-as-kill))
+#+end_src
+
+** Attach picture or file path when <kbd>⌘-V</kbd> in =org-mode=
+
+When you *paste* into =org-mode= files, it will insert a path link if you are copying a file or saving the pasteboard picture into =org-attach-id-dir= when copying a picture.
+
+#+begin_src elisp :results none
+(require 'url-util)
+(require 'org-attach)
+(require 'macos-clipboard)
+
+(defun smart-copy-attach-file (file-url &optional arg &rest _)
+  (let* ((file-url (url-unhex-string file-url))
+         (filepath (url-filename (url-generic-parse-url file-url)))
+         (dir-p    (file-directory-p filepath))
+         (basename (file-name-base filepath)))
+    (if (and (equal arg '(4)) (not dir-p))
+        (progn
+          (message "Attach file: %s" filepath)
+          (org-attach-attach filepath nil 'cp)
+          (org-insert-link nil (expand-file-name (file-name-nondirectory filepath) (org-attach-dir)) basename))
+      (progn
+        (message "Copy file path: %s" filepath)
+        (org-insert-link nil filepath basename)))))
+
+(defvar uniform-type-identifiers-file-extension-alist
+  '(("public.jpeg" . "jpg")
+    ("public.png"  . "png")
+    ("public.tiff" . "tiff"))
+  "Alist of (UTI . IMAGE-EXTENSION) pairs.")
+
+(defun smart-copy-attach-picture (content &optional arg ext)
+  (setq ext (cdr (assoc ext uniform-type-identifiers-file-extension-alist)))
+  (let* ((basename (format-time-string "%Y-%m-%dd%Hh%Mm%Ss%6N"))
+         (filename (file-name-with-extension basename ext))
+         (attach-dir (org-attach-dir 'get-create))
+         (filepath (expand-file-name filename attach-dir)))
+    (with-temp-file filepath
+      (insert content))
+    (org-insert-link nil (concat "file:" filepath) nil)
+    (org-redisplay-inline-images)))
+
+(defun smart-copy-copy-html (html &optional arg &rest _)
+  (if (not (equal arg '(4)))
+      'skip
+    (insert
+     (with-temp-buffer
+       (insert html)
+       (shell-command-on-region (point-min) (point-max) "pandoc -f html -t org" nil t)
+       (buffer-substring (point-min) (point-max))))
+    (sit-for 0)))
+
+(defvar smart-copy-org-handlers
+  `(
+    ("public.jpeg" . smart-copy-attach-picture)
+    ("public.png"  . smart-copy-attach-picture)
+    ("public.tiff" . smart-copy-attach-picture)
+    ("public.html" . smart-copy-copy-html)
+    ("public.file-url" . smart-copy-attach-file))
+  "Handlers for org-mode smart copy")
+
+(defun smart-copy-org-yank-generic (command &optional arg)
+  (if (ns-selection-owner-p 'CLIPBOARD)
+      (call-interactively command)
+    (let ((handlers smart-copy-org-handlers)
+          (clipboard (when smart-copy-org-handlers
+                       (car-safe (macos-clipboard-extract-pasteboard
+                                  (mapcar #'car smart-copy-org-handlers)))))
+          selected-handler)
+      (while (and handlers (not selected-handler))
+        (setq selected-handler
+              (assoc (caar handlers) clipboard))
+        (when (eq 'skip
+                  (when selected-handler
+                    (funcall (cdar handlers) (cdr selected-handler) arg (car selected-handler))))
+          (setq selected-handler nil))
+        (pop handlers))
+      (unless selected-handler
+        (call-interactively command)))))
+
+(defun smart-copy-org-yank (&optional arg)
+  (interactive "P")
+  (smart-copy-org-yank-generic 'org-yank arg))
+
+(define-key org-mode-map (kbd "s-v") #'smart-copy-org-yank)
+#+end_src
