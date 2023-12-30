@@ -1,5 +1,17 @@
-;;; emacs-clipboard.el --- Description -*- lexical-binding: t; -*-
+;;; macos-clipboard.el --- Communicate with macOS pasteboard server
+
+;; Copyright (C) 2023 Hanyuan Li
+
+;; Author: Hanyuan Li <lihanyuan1996@gmail.com>
+;; URL: https://github.com/citrus-lemon/emacs-macos-clipboard
+;; Keywords: clipboard macos
+;; Version: 1.0.0
+
 ;;; Commentary:
+;;
+;; communicate with macOS pasteboard server
+;;
+
 ;;; Code:
 
 (require 'macos-clipboard-nspasteboard)
