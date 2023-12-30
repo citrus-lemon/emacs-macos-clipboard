@@ -11,7 +11,7 @@ let package = Package(
             targets: ["ClipboardModule"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/citrus-lemon/emacs-swift-module.git", branch: "feature/make_unibyte_string")
+        .package(url: "https://github.com/SavchenkoValeriy/emacs-swift-module.git", from: "1.3.4")
     ],
     targets: [
         .target(

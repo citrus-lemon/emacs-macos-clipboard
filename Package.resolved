@@ -3,10 +3,10 @@
     {
       "identity" : "emacs-swift-module",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/citrus-lemon/emacs-swift-module.git",
+      "location" : "https://github.com/SavchenkoValeriy/emacs-swift-module.git",
       "state" : {
-        "branch" : "feature/make_unibyte_string",
-        "revision" : "29d59ee7261fa0562b1f00c4d79c710cd93d8bd3"
+        "revision" : "b70ebc30c4204f17e6217f2fed257609c4f139d9",
+        "version" : "1.3.5"
       }
     }
   ],
