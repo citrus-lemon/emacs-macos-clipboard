@@ -20,7 +20,11 @@
   (if types
       (if (eq types 'only-types)
           (macos-clipboard--extract-pasteboard-only-types)
-        (macos-clipboard--extract-pasteboard-with-types (if (listp types) types (list types))))
+        (let ((result (macos-clipboard--extract-pasteboard-with-types (if (listp types) types (list types)))))
+          ;; HACK: avoid result of '(nil)
+          (if (equal result '(nil))
+              nil
+            result)))
     (macos-clipboard--extract-pasteboard)))
 
 (defun macos-clipboard-set-string (value &optional type)
