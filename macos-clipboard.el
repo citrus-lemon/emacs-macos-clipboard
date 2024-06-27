@@ -30,5 +30,8 @@
 (defun macos-clipboard-set-string (value &optional type)
   (macos-clipboard--set-string value type))
 
+(defun macos-clipboard-set-data (value type)
+  (macos-clipboard--set-data (string-to-unibyte value) type))
+
 (provide 'macos-clipboard)
 ;;; macos-clipboard.el ends here
