@@ -272,9 +272,9 @@ best representation.
 * API (Lisp)
 
 - =(macos-clipboard-extract-pasteboard &optional TYPES)=
-  - =TYPES=nil=: return all items as lists of =(TYPE . DATA)= pairs
-  - =TYPES='only-types=: return only type strings (UTIs)
-  - =TYPES="public.png"= or list of UTIs: filter by those types
+  - ~TYPES=nil~: return all items as lists of =(TYPE . DATA)= pairs
+  - ~TYPES='only-types~: return only type strings (UTIs)
+  - ~TYPES="public.png"~ or list of UTIs: filter by those types
 - =(macos-clipboard-set-string VALUE &optional TYPE)=
   - Write UTF-8 text (default TYPE: =public.utf8-plain-text=)
 - =(macos-clipboard-set-data VALUE TYPE)=
