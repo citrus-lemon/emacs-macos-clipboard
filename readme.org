@@ -17,7 +17,7 @@ This package lets Emacs access that full richness, including:
 - Inspecting the available types (UTIs) for each item
 - Retrieving binary content (e.g., PNG, TIFF, HTML, file references)
 - Writing to the pasteboard in specific formats
-- Resolving macOS private file reference URLs (`file:///.file/id=…`) into real paths
+- Resolving macOS private file reference URLs (=file:///.file/id=…=) into real paths
 
 Example: copying two files from =Finder.app= yields:
 
@@ -251,17 +251,17 @@ These are common UTIs you’ll see from typical macOS apps. The pasteboard may
 include *multiple* types for the *same* item so that target apps can pick the
 best representation.
 
-| Source / Action                              | Likely UTIs (examples)                                 | Notes                                                             |
-|----------------------------------------------+---------------------------------------------------------+-------------------------------------------------------------------|
-| Finder: Copy file(s)                          | =public.file-url=, =public.utf8-plain-text=             | File URL may be =file:///.file/id=…=; resolve to path before use. |
-| Screenshot to clipboard (⌘-Ctrl-Shift-4)      | =public.png= (sometimes =public.tiff=)                  | PNG is most common; older paths may use TIFF.                     |
-| Preview: Copy image                           | =public.tiff=, =public.png=, =public.jpeg=              | Multiple image types may be present.                              |
-| Safari / WebKit: Copy selection               | =public.html=, =public.rtf=, =public.utf8-plain-text=   | Rich text + HTML + plain text.                                    |
-| TextEdit (rich text): Copy selection          | =public.rtf=, =public.utf16-external-plain-text=        | Often includes UTF-16 text.                                       |
-| Pages/Keynote/Numbers: Copy selection         | =public.rtf=, =public.html=, =public.utf8-plain-text=   | Exact set varies by content.                                      |
-| Preview / Acrobat: Copy from PDF              | =com.adobe.pdf=, =public.tiff=, =public.utf8-plain-text=| PDF fragments sometimes offer image + text.                       |
-| Browser: Copy image                           | =public.png=, =public.jpeg=, =public.tiff=              | Depends on the resource type and browser.                         |
-| Copy link                                     | =public.url=, =public.url-name=, =public.utf8-plain-text=| URL + a friendly name; plain text fallback.                       |
+| Source / Action                          | Likely UTIs (examples)                                    | Notes                                                             |
+|------------------------------------------+-----------------------------------------------------------+-------------------------------------------------------------------|
+| Finder: Copy file(s)                     | =public.file-url=, =public.utf8-plain-text=               | File URL may be =file:///.file/id=…=; resolve to path before use. |
+| Screenshot to clipboard (⌘-Ctrl-Shift-4) | =public.png= (sometimes =public.tiff=)                    | PNG is most common; older paths may use TIFF.                     |
+| Preview: Copy image                      | =public.tiff=, =public.png=, =public.jpeg=                | Multiple image types may be present.                              |
+| Safari / WebKit: Copy selection          | =public.html=, =public.rtf=, =public.utf8-plain-text=     | Rich text + HTML + plain text.                                    |
+| TextEdit (rich text): Copy selection     | =public.rtf=, =public.utf16-external-plain-text=          | Often includes UTF-16 text.                                       |
+| Pages/Keynote/Numbers: Copy selection    | =public.rtf=, =public.html=, =public.utf8-plain-text=     | Exact set varies by content.                                      |
+| Preview / Acrobat: Copy from PDF         | =com.adobe.pdf=, =public.tiff=, =public.utf8-plain-text=  | PDF fragments sometimes offer image + text.                       |
+| Browser: Copy image                      | =public.png=, =public.jpeg=, =public.tiff=                | Depends on the resource type and browser.                         |
+| Copy link                                | =public.url=, =public.url-name=, =public.utf8-plain-text= | URL + a friendly name; plain text fallback.                       |
 
 /Quick check of what you have right now:/
 #+begin_src elisp
