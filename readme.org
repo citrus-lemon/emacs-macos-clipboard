@@ -1,38 +1,63 @@
 #+title: Emacs macOS Clipboard
 #+subtitle: An Emacs extension for communicating with macOS pasteboard server
 
-An Emacs extension for communicating with macOS pasteboard server
+*Emacs macOS Clipboard* provides advanced integration with the macOS pasteboard
+(NSPasteboard API), allowing Emacs to interact with clipboard content in
+multiple formats beyond plain text.
 
 * Introduction
 
-Emacs can read or write into the clipboard.
-However, macOS provides more function than only reading or writing strings.
+By default, Emacs on macOS can read from and write to the system clipboard
+(mainly as plain text). However, the macOS pasteboard supports *more than just
+strings*: it can hold multiple items, and each item can have multiple
+representations (UTIs — Uniform Type Identifiers).
 
-macOS pasteboards can provide multi items simultaneously, with one item saved as different presentations.
+This package lets Emacs access that full richness, including:
+- Reading multiple pasteboard items at once
+- Inspecting the available types (UTIs) for each item
+- Retrieving binary content (e.g., PNG, TIFF, HTML, file references)
+- Writing to the pasteboard in specific formats
+- Resolving macOS private file reference URLs (`file:///.file/id=…`) into real paths
 
-For example copying two files from =Finder.app=
+Example: copying two files from =Finder.app= yields:
 
 #+begin_src elisp
 (macos-clipboard-extract-pasteboard)
+;; =>
 ((("public.file-url" . "file:///Applications/Emacs.app/Contents/MacOS/Emacs")
   ("public.utf16-external-plain-text" . "\377\376E^@m^@a^@c^@s^@^M^@l^@i^@b^@e^@x^@e^@c^@")
   ("public.utf8-plain-text" . "Emacs^Mlibexec"))
  (("public.file-url" . "file:///Applications/Emacs.app/Contents/MacOS/libexec/")))
 #+end_src
 
-This package provide the deeper function of macOS pasteboard by bridging [[https://developer.apple.com/documentation/appkit/nspasteboard][macOS Pasteboard API]].
+This is possible by bridging directly to the native
+[[https://developer.apple.com/documentation/appkit/nspasteboard][macOS Pasteboard API]] via a Swift native module.
+
+* Features
+- Access all pasteboard items and their multiple representations
+- Retrieve both text and binary formats (e.g., images, HTML, files)
+- Write to the pasteboard in a specific format (UTI)
+- Inspect only the available type identifiers without fetching data
+- Works seamlessly with Emacs Lisp for automation
+- Includes example Org Mode integrations for smart paste and copy
+
+* Requirements
+- macOS 10.13 or later
+- Emacs with dynamic module support
+- Swift toolchain (for building the native module)
+- =make= for building
 
 * Installation
 
-This package need =Swift Package Manager= to install
+** Build the native module (Swift Package Manager)
 
 #+begin_src shell
 make all
 #+end_src
 
-** for Doom Emacs
+** Doom Emacs users
 
-add the config to =package.el=
+Add to =packages.el=:
 
 #+begin_src elisp
 (when IS-MAC
@@ -45,28 +70,55 @@ add the config to =package.el=
 
 * Usage
 
-** Get screenshot from pasteboard
+** Read current pasteboard content
+
+Retrieve all items and their available types/data:
 
 #+begin_src elisp
 (macos-clipboard-extract-pasteboard)
-;; screenshot from pasteboard
-((("public.png" . "<binary data>")))
+;; => ((("public.utf8-plain-text" . "Hello world"))
+;;     (("public.png" . "<binary data>")))
 #+end_src
 
-** Copy HTML version when using ~⌘-C~ in =org-mode=.
+Retrieve only certain types:
 
-This works when you copy your =org-mode= docs to *Slack*, *Google Docs* with keeping format.
+#+begin_src elisp
+(macos-clipboard-extract-pasteboard "public.png")
+;; => ((("public.png" . "<binary data>")))
+#+end_src
 
-#+begin_src elisp :results none
+Get only the list of types (UTIs):
+
+#+begin_src elisp
+(macos-clipboard-extract-pasteboard 'only-types)
+;; => (("public.file-url" "public.utf8-plain-text"))
+#+end_src
+
+** Get screenshot from pasteboard
+
+If you take a screenshot with =⌘-Shift-Ctrl-4= (copy to clipboard):
+
+#+begin_src elisp
+(macos-clipboard-extract-pasteboard "public.png")
+;; => ((("public.png" . "<binary data>")))
+#+end_src
+
+** Copy HTML alongside text in Org Mode (⌘-C)
+
+Copy in Org so that apps like Slack / Google Docs receive HTML (keeps formatting).
+
+#+begin_src elisp
 (require 'macos-clipboard)
 
 (defun macos-clipboard-org-kill-new (str)
+  "Copy STR to kill ring and also set HTML representation on the macOS pasteboard."
   (kill-new str)
   (macos-clipboard-set-string
    (org-export-string-as str 'html t '(:with-toc nil :inline-image local))
    "public.html"))
 
 (defun macos-clipboard-org-copy-region-as-kill (beg end &optional region)
+  "Copy region as both text and HTML to the pasteboard. Binds to ⌘-C."
   (interactive (list (mark) (point) 'region))
   (let ((str (if region
                  (funcall region-extract-function nil)
@@ -79,17 +131,28 @@ This works when you copy your =org-mode= docs to *Slack*, *Google Docs* with kee
   '(define-key org-mode-map (kbd "s-c") 'macos-clipboard-org-copy-region-as-kill))
 #+end_src
 
-** Attach picture or file path when ~⌘-V~ in =org-mode=
+/Notes:/
+- Requires no extra tools. HTML is produced via =org-export-string-as=.
+- =s-c= is the Command (⌘) key on macOS.
 
-When you *paste* into =org-mode= files, it will insert a path link if you are copying a file or saving the pasteboard picture into =org-attach-id-dir= when copying a picture.
+** Smart paste in Org Mode (⌘-V): files, images, HTML
 
-#+begin_src elisp :results none
+When pasting in Org with ⌘-V:
+- File URL → insert as link, or with =C-u ⌘-V= attach into =org-attach-id-dir=
+- Image (PNG/JPEG/TIFF) → save to =org-attach-id-dir= and link it
+- HTML → convert to Org via Pandoc and insert
+- Fallback → normal =org-yank=
+
+#+begin_src elisp
 (require 'url-util)
 (require 'org-attach)
 (require 'macos-clipboard)
 
 (defun smart-copy-attach-file (file-url &optional arg &rest _)
-  (let* ((file-url (url-unhex-string file-url))
+  "Insert FILE-URL as link, or with C-u, attach it to this Org entry."
+  (let* (;; TIP: resolve private .file/id=... URLs for reliability
+         (file-url (macos-clipboard-resolve-alias-file file-url))
+         (file-url (url-unhex-string file-url))
          (filepath (url-filename (url-generic-parse-url file-url)))
          (dir-p    (file-directory-p filepath))
          (basename (file-name-base filepath)))
@@ -97,7 +160,10 @@ When you *paste* into =org-mode= files, it will insert a path link if you are co
         (progn
           (message "Attach file: %s" filepath)
           (org-attach-attach filepath nil 'cp)
-          (org-insert-link nil (expand-file-name (file-name-nondirectory filepath) (org-attach-dir)) basename))
+          (org-insert-link
+           nil
+           (expand-file-name (file-name-nondirectory filepath) (org-attach-dir))
+           basename))
       (progn
         (message "Copy file path: %s" filepath)
         (org-insert-link nil filepath basename)))))
@@ -106,60 +172,122 @@ When you *paste* into =org-mode= files, it will insert a path link if you are co
   '(("public.jpeg" . "jpg")
     ("public.png"  . "png")
     ("public.tiff" . "tiff"))
-  "Alist of (UTI . IMAGE-EXTENSION) pairs.")
+  "Map clipboard image UTIs to filename extensions.")
 
-(defun smart-copy-attach-picture (content &optional arg ext)
+(defun smart-copy-attach-picture (content &optional _arg ext)
+  "Save image CONTENT into `org-attach-id-dir' and link it inline."
   (setq ext (cdr (assoc ext uniform-type-identifiers-file-extension-alist)))
   (let* ((basename (format-time-string "%Y-%m-%dd%Hh%Mm%Ss%6N"))
-         (filename (file-name-with-extension basename ext))
+         ;; Emacs 29+: `file-name-with-extension'. For older Emacs, use (concat basename "." ext).
+         (filename (if (fboundp 'file-name-with-extension)
+                       (file-name-with-extension basename ext)
+                     (concat basename "." ext)))
          (attach-dir (org-attach-dir 'get-create))
          (filepath (expand-file-name filename attach-dir)))
     (with-temp-file filepath
+      ;; CONTENT is raw bytes (string of unibyte chars)
       (insert content))
     (org-insert-link nil (concat "file:" filepath) nil)
     (org-redisplay-inline-images)))
 
 (defun smart-copy-copy-html (html &optional arg &rest _)
+  "Convert HTML to Org (via Pandoc) on C-u paste; otherwise skip."
   (if (not (equal arg '(4)))
       'skip
     (insert
      (with-temp-buffer
        (insert html)
+       ;; Requires `pandoc` installed in PATH
        (shell-command-on-region (point-min) (point-max) "pandoc -f html -t org" nil t)
        (buffer-substring (point-min) (point-max))))
     (sit-for 0)))
 
 (defvar smart-copy-org-handlers
   `(
-    ("public.jpeg" . smart-copy-attach-picture)
-    ("public.png"  . smart-copy-attach-picture)
-    ("public.tiff" . smart-copy-attach-picture)
-    ("public.html" . smart-copy-copy-html)
-    ("public.file-url" . smart-copy-attach-file))
-  "Handlers for org-mode smart copy")
+    ("public.jpeg"    . smart-copy-attach-picture)
+    ("public.png"     . smart-copy-attach-picture)
+    ("public.tiff"    . smart-copy-attach-picture)
+    ("public.html"    . smart-copy-copy-html)
+    ("public.file-url". smart-copy-attach-file))
+  "Dispatch table from UTI → handler function.")
 
 (defun smart-copy-org-yank-generic (command &optional arg)
+  "Paste intelligently from macOS clipboard, handing off to COMMAND if unsupported."
   (if (ns-selection-owner-p 'CLIPBOARD)
       (call-interactively command)
     (let ((handlers smart-copy-org-handlers)
+          ;; We query *only the first item*. Extend to loop all items if needed.
           (clipboard (when smart-copy-org-handlers
                        (car-safe (macos-clipboard-extract-pasteboard
                                   (mapcar #'car smart-copy-org-handlers)))))
           selected-handler)
       (while (and handlers (not selected-handler))
-        (setq selected-handler
-              (assoc (caar handlers) clipboard))
-        (when (eq 'skip
-                  (when selected-handler
-                    (funcall (cdar handlers) (cdr selected-handler) arg (car selected-handler))))
+        (setq selected-handler (assoc (caar handlers) clipboard))
+        (when (eq 'skip (when selected-handler
+                          (funcall (cdar handlers)
+                                   (cdr selected-handler) arg (car selected-handler))))
           (setq selected-handler nil))
         (pop handlers))
       (unless selected-handler
         (call-interactively command)))))
 
 (defun smart-copy-org-yank (&optional arg)
+  "Paste with smart handlers for files/images/HTML; use C-u to attach or convert."
   (interactive "P")
   (smart-copy-org-yank-generic 'org-yank arg))
 
 (define-key org-mode-map (kbd "s-v") #'smart-copy-org-yank)
 #+end_src
+
+/Notes & tips:/
+- *File URLs:* We resolve =file:///.file/id=…= via =macos-clipboard-resolve-alias-file= to get a stable POSIX path.
+- *Images:* Ensure =org-display-inline-images= is enabled to see images inline after paste.
+- *HTML → Org:* Requires [[https://pandoc.org/][Pandoc]] in your shell’s =PATH=.
+- *Multiple items:* The example handles only the first pasteboard item for simplicity; loop over =(macos-clipboard-extract-pasteboard 'only-types)= if you want to paste multiple items in one go.
+
+* Table of Common UTIs (examples)
+
+These are common UTIs you’ll see from typical macOS apps. The pasteboard may
+include *multiple* types for the *same* item so that target apps can pick the
+best representation.
+
+| Source / Action                              | Likely UTIs (examples)                                 | Notes                                                             |
+|----------------------------------------------+---------------------------------------------------------+-------------------------------------------------------------------|
+| Finder: Copy file(s)                          | =public.file-url=, =public.utf8-plain-text=             | File URL may be =file:///.file/id=…=; resolve to path before use. |
+| Screenshot to clipboard (⌘-Ctrl-Shift-4)      | =public.png= (sometimes =public.tiff=)                  | PNG is most common; older paths may use TIFF.                     |
+| Preview: Copy image                           | =public.tiff=, =public.png=, =public.jpeg=              | Multiple image types may be present.                              |
+| Safari / WebKit: Copy selection               | =public.html=, =public.rtf=, =public.utf8-plain-text=   | Rich text + HTML + plain text.                                    |
+| TextEdit (rich text): Copy selection          | =public.rtf=, =public.utf16-external-plain-text=        | Often includes UTF-16 text.                                       |
+| Pages/Keynote/Numbers: Copy selection         | =public.rtf=, =public.html=, =public.utf8-plain-text=   | Exact set varies by content.                                      |
+| Preview / Acrobat: Copy from PDF              | =com.adobe.pdf=, =public.tiff=, =public.utf8-plain-text=| PDF fragments sometimes offer image + text.                       |
+| Browser: Copy image                           | =public.png=, =public.jpeg=, =public.tiff=              | Depends on the resource type and browser.                         |
+| Copy link                                     | =public.url=, =public.url-name=, =public.utf8-plain-text=| URL + a friendly name; plain text fallback.                       |
+
+/Quick check of what you have right now:/
+#+begin_src elisp
+(macos-clipboard-extract-pasteboard 'only-types)
+;; => (("public.html" "public.utf8-plain-text"))
+#+end_src
+
+* API (Lisp)
+
+- =(macos-clipboard-extract-pasteboard &optional TYPES)=
+  - =TYPES=nil=: return all items as lists of =(TYPE . DATA)= pairs
+  - =TYPES='only-types=: return only type strings (UTIs)
+  - =TYPES="public.png"= or list of UTIs: filter by those types
+- =(macos-clipboard-set-string VALUE &optional TYPE)=
+  - Write UTF-8 text (default TYPE: =public.utf8-plain-text=)
+- =(macos-clipboard-set-data VALUE TYPE)=
+  - Write raw bytes (use =string-as-unibyte=); TYPE must be a UTI
+
+* Tips & Caveats
+
+- *Multiple items:* NSPasteboard can contain *several* items. The high-level
+  helpers return a list of items; iterate as needed.
+- *Data size:* Large images are fine, but keep in mind Emacs buffer limits and
+  performance when inserting binary data.
+- *UTIs are advisory:* The *producer* chooses what types to offer; not every app
+  provides every format.
+- *File references:* =file:///.file/id=…= is a private, stable reference within a
+  volume. Use =macos-clipboard-resolve-alias-file= to get a normal path if you
+  plan to read/write the file from Emacs.
