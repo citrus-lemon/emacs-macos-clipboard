@@ -48,6 +48,18 @@ func setDataPasteboard(data: Data, type: String?) {
     NSPasteboard.general.setData(data, forType: pasteboardType)
 }
 
+func resolveAliasFile(fileURLString: String) -> String {
+    if let fileURL = URL(string: fileURLString) {
+        // This resolves `.file/id=...` to an actual file path
+        if let resolvedURL = try? URL(resolvingAliasFileAt: fileURL, options: []) {
+            return resolvedURL.path
+        } else if fileURL.isFileURL {
+            return fileURL.path // Works if already a normal file:// path
+        }
+    }
+    return fileURLString
+}
+
 class ClipboardModule: Module {
     let isGPLCompatible = true
     func Init(_ env: Environment) throws {
